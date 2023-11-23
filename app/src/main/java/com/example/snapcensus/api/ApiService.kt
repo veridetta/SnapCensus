@@ -10,11 +10,11 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 
 interface ApiService {
-    @GET("/opensid/api/get.php?api_key=87Y78GF78SHFDSHFU")
+    @GET("/api/get.php?api_key=87Y78GF78SHFDSHFU")
     fun getJenisKelamin(): Call<GetModel>
 
     @FormUrlEncoded
-    @POST("/opensid/api/create_penduduk.php?api_key=87Y78GF78SHFDSHFU")
+    @POST("/api/create_penduduk.php?api_key=87Y78GF78SHFDSHFU")
     fun postData(
         @Field("nik") qKtp: String,
         @Field("nama") qNama: String,

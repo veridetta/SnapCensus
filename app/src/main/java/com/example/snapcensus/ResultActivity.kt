@@ -21,6 +21,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import timber.log.Timber
+import java.util.regex.Pattern
 
 class ResultActivity : AppCompatActivity() {
     lateinit var konten : RelativeLayout
@@ -65,6 +66,7 @@ class ResultActivity : AppCompatActivity() {
     var qStatus=""
     var qPekerjaan=""
     var qJk=""
+    var isCamera = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,27 +99,83 @@ class ResultActivity : AppCompatActivity() {
     }
     private fun initIntent(){
         stringMentah = intent.getStringExtra("text").toString()
-        //no ktp ambil dari stringMentah garis ke 12
-        sKtp = stringMentah.split("\n")[11]
-        sNama = stringMentah.split("\n")[12]
-        sTtl = stringMentah.split("\n")[13]
-        sJk = stringMentah.split("\n")[14]
-        sAlamat = stringMentah.split("\n")[15]
-        sRtRw = stringMentah.split("\n")[16]
-        sKelurahan = stringMentah.split("\n")[17]
-        sKecamatan = stringMentah.split("\n")[18]
-        sAgama = stringMentah.split("\n")[19]
-        sStatus = stringMentah.split("\n")[20]
-        sStatus = sStatus.split("Status Perkawinan: ")[1]
-        sPekerjaan = stringMentah.split("\n")[24]
-        sPekerjaan = sPekerjaan.split(":")[1]
+        isCamera = intent.getBooleanExtra("isCamera", false)
+        if(isCamera){
+
+            val nikRegex = Regex("[0-9]{8,16}")
+            sKtp = nikRegex.find(stringMentah)?.value ?: ""
+            val statusRegex = Regex("Status Perkawinan\\s*:\\s*(.*)\\s*Pekerjaan")
+            sStatus = statusRegex.find(stringMentah)?.groups?.get(1)?.value ?: ""
+            //val ttlRegex = Regex("[^,]+, \\d{2}-\\d{2}-\\d{4}")
+            val ttlRegex = Regex("(?<=Tempat[\\W]?Tgl[\\W]?Lahir|TempatgLahir)\\s+([^,]+, \\d{2}-\\d{2}-\\d{4})")
+            val match = ttlRegex.find(stringMentah)
+            sTtl = match?.groupValues?.getOrNull(1) ?: ""
+            //sTtl = ttlRegex.find(stringMentah)?.value ?: ""
+            val jkRegex = Regex("LAKI[ -]?LAKI|Perempuan", RegexOption.IGNORE_CASE)
+            sJk = jkRegex.find(stringMentah)?.value ?: ""
+            val rtrwRegex = Regex("\\d{3}[ /]\\d{3}")
+            sRtRw = rtrwRegex.find(stringMentah)?.value ?: ""
+            val matchNik = nikRegex.find(stringMentah)
+            sNama = matchNik?.next()?.value ?: ""
+            //sNama = stringMentah.split("\n")[12]
+            //sTtl = stringMentah.split("\n")[14]
+            //sJk = stringMentah.split("\n")[15]
+            sAlamat = stringMentah.split("\n")[13]
+            //sRtRw = stringMentah.split("\n")[19]
+            sKelurahan = stringMentah.split("\n")[15]
+            sKecamatan = stringMentah.split("\n")[16]
+            sAgama = stringMentah.split("\n")[17]
+            //sStatus = stringMentah.split("\n")[21]
+            if(sStatus.contains(":")){
+                sStatus = sStatus.split(":")[1]
+            }
+
+            sPekerjaan = stringMentah.split("\n")[23]
+            if(sPekerjaan.contains(":")){
+                sPekerjaan = sPekerjaan.split(":")[1]
+            }
+        }else{
+            val regexNikPattern = "[0-9]{8,16}"
+            val nikPattern = Pattern.compile(regexNikPattern)
+            val matcherNik = nikPattern.matcher(stringMentah)
+            if(matcherNik.find()){
+                sKtp =matcherNik.group()
+            }
+            sNama = stringMentah.split("\n")[12]
+            sTtl = stringMentah.split("\n")[13]
+            sJk = stringMentah.split("\n")[14]
+            sAlamat = stringMentah.split("\n")[15]
+            sRtRw = stringMentah.split("\n")[16]
+            sKelurahan = stringMentah.split("\n")[17]
+            sKecamatan = stringMentah.split("\n")[18]
+            sAgama = stringMentah.split("\n")[19]
+            sStatus = stringMentah.split("\n")[20]
+            if(sStatus.contains(":")){
+                sStatus = sStatus.split("Status Perkawinan: ")[1]
+            }
+
+            sPekerjaan = stringMentah.split("\n")[24]
+            if(sPekerjaan.contains(":")){
+                sPekerjaan = sPekerjaan.split(":")[1]
+            }
+        }
+
     }
 
     private fun setView(){
         etNik.setText(sKtp)
         etNama.setText(sNama)
-        etTempat.setText(sTtl.split(",")[0])
-        etTanggal.setText(sTtl.split(",")[1])
+        if(sTtl.contains(",")){
+            etTempat.setText(sTtl.split(",")[0])
+            etTanggal.setText(sTtl.split(",")[1])
+        }else if(sTtl.contains(" ")){
+            etTempat.setText(sTtl.split(" ")[0])
+            etTanggal.setText(sTtl.split(" ")[1])
+        }else{
+            etTempat.setText(sTtl)
+            etTanggal.setText("2023-10-25")
+        }
+
         etAlamat.setText(sAlamat)
         etKecamatan.setText(sKecamatan)
     }
@@ -172,14 +230,16 @@ class ResultActivity : AppCompatActivity() {
                     initSpinner(spPekerjaan, namaPekerjaanList.toTypedArray())
                     initSpinner(spRw, rwList.toTypedArray())
                     initSpinner(spKelurahan, namaDusunList.toTypedArray())
-                    cekSimilarity(spRt,rtList.toTypedArray(), sRtRw.split("/")[0])
-                    cekSimilarity(spRw,rwList.toTypedArray(), sRtRw.split("/")[1])
+                    if (sRtRw.contains("/")){
+                        cekSimilarity(spRt,rtList.toTypedArray(), sRtRw.split("/")[0])
+                        cekSimilarity(spRw,rwList.toTypedArray(), sRtRw.split("/")[1])
+                        cekSimilarity(spKelurahan,namaDusunList.toTypedArray(), sRtRw.split("/")[0]+" "+
+                                sRtRw.split("/")[1]+" "+sKelurahan)
+                    }
                     cekSimilarity(spJk,namaJenisKelaminList.toTypedArray(), sJk)
                     cekSimilarity(spAgama,namaAgamaList.toTypedArray(), sAgama)
                     cekSimilarity(spStatus,namaStatusList.toTypedArray(), sStatus)
                     cekSimilarity(spPekerjaan,namaPekerjaanList.toTypedArray(), sPekerjaan)
-                    cekSimilarity(spKelurahan,namaDusunList.toTypedArray(), sRtRw.split("/")[0]+" "+
-                            sRtRw.split("/")[1]+" "+sKelurahan)
                     lyProses.visibility = CoordinatorLayout.GONE
                     btnSimpan.setOnClickListener {
                         lyProses.visibility = CoordinatorLayout.VISIBLE

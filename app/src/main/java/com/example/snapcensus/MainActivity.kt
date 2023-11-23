@@ -1,8 +1,11 @@
 package com.example.snapcensus
 
+import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -10,6 +13,7 @@ import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.Toolbar
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.snapcensus.helper.showSnackbar
 import com.example.snapcensus.permissionkit.askPermissions
@@ -18,6 +22,10 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.marchinram.rxgallery.RxGallery
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import timber.log.Timber
 import java.util.regex.Pattern
@@ -27,6 +35,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var btnCamera: Button
     lateinit var btnGallery: Button
     lateinit var textoutput:TextView
+    private val GALLERY_REQUEST_CODE = 1
+    private var isCamera = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,7 +50,9 @@ class MainActivity : AppCompatActivity() {
             RxGallery.photoCapture(this).subscribe({ uriPhoto ->
                 Timber.d(uriPhoto.toString())
                 uriPath = uriPhoto
+                Log.d("MainActivity", "onCreate: $uriPath")
                 if (::uriPath.isInitialized) {
+                    isCamera = true
                     startOCR()
                 } else {
                     Toast.makeText(this@MainActivity, "Mohon pilih gambar", Toast.LENGTH_SHORT).show()
@@ -53,7 +65,9 @@ class MainActivity : AppCompatActivity() {
             })
         }
         btnGallery.setOnClickListener {
-            RxGallery.gallery(this, false, RxGallery.MimeType.IMAGE)
+            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            startActivityForResult(intent, GALLERY_REQUEST_CODE)
+            /*RxGallery.gallery(this, false, RxGallery.MimeType.IMAGE)
                 .subscribe({ uriPhoto ->
                     Timber.d(uriPhoto.toString())
                     uriPath = uriPhoto[0]
@@ -67,7 +81,8 @@ class MainActivity : AppCompatActivity() {
                     Timber.e(error, "Error occurred")
                     // Optionally show a Toast or perform other error handling
                     showSnackbar(btnGallery, error.message ?: "Error occurred")
-                })
+
+                })*/
         }
 
 
@@ -123,6 +138,7 @@ class MainActivity : AppCompatActivity() {
                         //intent with put extra
                         val intent = Intent(this, ResultActivity::class.java)
                         intent.putExtra("text", blockText.text)
+                        intent.putExtra("isCamera", isCamera)
                         startActivity(intent)
                     }
                 }
@@ -132,5 +148,34 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, "Failure {$it}", Toast.LENGTH_SHORT).show()
             }
     }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
 
+        if (resultCode == Activity.RESULT_OK) {
+            when (requestCode) {
+                GALLERY_REQUEST_CODE -> {
+                    val selectedImage = data?.data
+                    //Glide.with(this).load(selectedImage).into(imageView)
+
+                    val imageFilePath = getImageFilePath(selectedImage) // Mendapatkan jalur file gambar dari URI
+
+                    if (imageFilePath != null) {
+                        uriPath = selectedImage!!
+                        startOCR()
+                    } else {
+                        println("Failed to get image file path.")
+                    }
+                }
+            }
+        }
+    }
+    private fun getImageFilePath(uri: Uri?): String? {
+        val projection = arrayOf(MediaStore.Images.Media.DATA)
+        val cursor = contentResolver.query(uri!!, projection, null, null, null)
+        val columnIndex = cursor?.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+        cursor?.moveToFirst()
+        val filePath = columnIndex?.let { cursor?.getString(it) }
+        cursor?.close()
+        return filePath
+    }
 }
